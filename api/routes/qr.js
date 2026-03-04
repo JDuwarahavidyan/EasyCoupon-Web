@@ -133,6 +133,7 @@ router.get('/count', verifyAdmin, async (req, res) => {
 
         res.status(200).json(result);
     } catch (err) {
+        console.error('QR count error:', err.message || err);
         res.status(500).json({ error: 'Failed to fetch QR count data' });
     }
 });

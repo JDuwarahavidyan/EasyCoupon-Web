@@ -109,7 +109,18 @@ router.post('/register', verifyAdmin, async (req, res) => {
 </td></tr>
 </table>
 
-<p style="margin:0 0 16px 0;">Get started by downloading the Easy Coupon app:</p>
+${role === 'admin'
+? `<p style="margin:0 0 16px 0;">Get started by logging into the Easy Coupon Admin Panel:</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<tr><td align="center" style="border-radius:8px; background-color:#2E5A3A;">
+  <a href="https://easycouponweb.onrender.com/"
+     style="display:inline-block; padding:14px 36px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">
+    Go to Admin Panel
+  </a>
+</td></tr>
+</table>`
+: `<p style="margin:0 0 16px 0;">Get started by downloading the Easy Coupon app:</p>
 
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
 <tr><td align="center" style="border-radius:8px; background-color:#2E5A3A;">
@@ -118,7 +129,7 @@ router.post('/register', verifyAdmin, async (req, res) => {
     Download App
   </a>
 </td></tr>
-</table>`);
+</table>`}`);
 
         res.status(201).json({
             message: 'User registered successfully and email sent',
