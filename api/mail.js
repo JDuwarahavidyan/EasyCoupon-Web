@@ -1,23 +1,9 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 require('dotenv').config();
 
-// Set up Nodemailer transport configuration (Brevo SMTP)
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.BREVO_SMTP_LOGIN,
-    pass: process.env.BREVO_SMTP_PASSWORD
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
-
-// Function to send an email with the provided details
+// Function to send an email via Brevo HTTP API (works on Render free tier)
 const sendEmail = async (to, subject, fullName, customMessage) => {
-  const message = `
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,18 +68,25 @@ const sendEmail = async (to, subject, fullName, customMessage) => {
 </body>
 </html>`;
 
-  const mailOptions = {
-    from: `"Easy Coupon" <${process.env.EMAIL_FROM}>`,
-    to,
-    subject,
-    html: message
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
+    await axios.post('https://api.brevo.com/v3/smtp/email', {
+      sender: {
+        name: 'Easy Coupon',
+        email: process.env.EMAIL_FROM,
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    }, {
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
     console.log('Email sent successfully');
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending email:', error.response?.data || error.message);
     throw error;
   }
 };
