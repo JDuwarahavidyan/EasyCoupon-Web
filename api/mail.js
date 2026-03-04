@@ -1,14 +1,17 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// Set up Nodemailer transport configuration
+// Set up Nodemailer transport configuration (Brevo SMTP)
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: 'smtp-relay.brevo.com',
   port: 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: process.env.BREVO_SMTP_LOGIN,
+    pass: process.env.BREVO_SMTP_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
@@ -80,7 +83,7 @@ const sendEmail = async (to, subject, fullName, customMessage) => {
 </html>`;
 
   const mailOptions = {
-    from: `"Easy Coupon" <${process.env.EMAIL_USER}>`,
+    from: `"Easy Coupon" <${process.env.EMAIL_FROM}>`,
     to,
     subject,
     html: message
