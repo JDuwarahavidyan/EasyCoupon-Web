@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f0faf4;
+  --color-primary-100: #d1f0dc;
+  --color-primary-200: #a3e1b9;
+  --color-primary-300: #6dcf8c;
+  --color-primary-400: #3cb34a;
+  --color-primary-500: #25664b;
+  --color-primary-600: #1d5340;
+  --color-primary-700: #164033;
+  --color-primary-800: #0f2d24;
+  --color-primary-900: #081a15;
+
+  --color-accent-50: #f0f4f8;
+  --color-accent-100: #d9e2ec;
+  --color-accent-200: #bcccdc;
+  --color-accent-300: #9fb3c8;
+  --color-accent-400: #829ab1;
+  --color-accent-500: #627d98;
+  --color-accent-600: #486581;
+  --color-accent-700: #334e68;
+  --color-accent-800: #243b53;
+  --color-accent-900: #102a43;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8faf9;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+.react-datepicker__input-container input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+.react-datepicker__input-container input:focus {
+  border-color: #3cb34a;
+  box-shadow: 0 0 0 2px rgba(60, 179, 74, 0.2);
+}
