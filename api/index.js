@@ -39,6 +39,9 @@ const db = admin.firestore();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Trust proxy (required for Render/reverse proxy + express-rate-limit)
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
