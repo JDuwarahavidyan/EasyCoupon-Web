@@ -42,11 +42,13 @@ const Topbar = ({ onMenuClick }) => {
             onClick={() => setDropdownOpen(!dropdownOpen)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-primary-400 flex items-center justify-center text-white text-sm font-semibold">
-              {user?.userName?.charAt(0)?.toUpperCase() || 'A'}
-            </div>
+            <img
+              src={user?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || user?.userName || 'Admin')}&background=3CB34A&color=fff&size=32`}
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover"
+            />
             <span className="hidden sm:block text-sm font-medium text-gray-700">
-              {user?.userName || 'Admin'}
+              {user?.fullName || user?.userName || 'Admin'}
             </span>
             <ChevronDown size={16} className="text-gray-400" />
           </button>
@@ -54,7 +56,7 @@ const Topbar = ({ onMenuClick }) => {
           {dropdownOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 animate-in fade-in slide-in-from-top-2">
               <div className="px-4 py-2 border-b border-gray-100">
-                <p className="text-sm font-medium text-gray-900">{user?.userName}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.fullName || user?.userName}</p>
                 <p className="text-xs text-gray-500">Administrator</p>
               </div>
               <button

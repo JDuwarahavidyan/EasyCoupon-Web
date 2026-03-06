@@ -192,6 +192,11 @@ router.post('/login', async (req, res) => {
             customToken,
             uid: userId,
             isFirstTime,
+            userName: userData.userName,
+            fullName: userData.fullName,
+            email: userData.email,
+            profilePic: userData.profilePic,
+            role: userData.role,
         });
     } catch (error) {
         res.status(401).json({ error: 'Invalid credentials' });
