@@ -1,13 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useContext } from 'react'
 import { AuthContext } from '../context/AuthContext.jsx'
-import { LayoutDashboard, Users, FileBarChart, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, Users, FileBarChart, LogOut, X, ScrollText } from 'lucide-react'
 import logo from '../assets/logo.png'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/users', icon: Users, label: 'Users' },
   { to: '/reports', icon: FileBarChart, label: 'Reports' },
+  { to: '/logs', icon: ScrollText, label: 'Audit Logs' },
 ]
 
 const Sidebar = ({ open, onClose }) => {

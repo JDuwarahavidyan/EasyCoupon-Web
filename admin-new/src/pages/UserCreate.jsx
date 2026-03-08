@@ -1,19 +1,26 @@
-import { useState } from 'react'
+import { useState, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AuthContext } from '../context/AuthContext.jsx'
 import { registerUser } from '../api/auth.js'
+import AccessDeniedModal from '../components/AccessDeniedModal.jsx'
 import { Upload, UserPlus, Loader2, ArrowLeft, FileSpreadsheet, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
-const ROLES = [
+const ALL_ROLES = [
   { value: 'student', label: 'Student' },
   { value: 'canteena', label: 'Canteen A' },
   { value: 'canteenb', label: 'Canteen B' },
   { value: 'admin', label: 'Admin' },
+  { value: 'superadmin', label: 'Super Admin' },
 ]
 
 const UserCreate = () => {
   const navigate = useNavigate()
+  const { user: currentUser } = useContext(AuthContext)
+  const isSuperAdmin = currentUser?.role === 'superadmin'
+  const ROLES = isSuperAdmin ? ALL_ROLES : ALL_ROLES.filter(r => r.value === 'student')
   const [mode, setMode] = useState('single') // 'single' | 'bulk'
+  const [showAccessDenied, setShowAccessDenied] = useState(false)
 
   // Single user state
   const [form, setForm] = useState({ userName: '', fullName: '', email: '', role: '' })
@@ -31,6 +38,11 @@ const UserCreate = () => {
 
     if (!form.userName.trim() || !form.fullName.trim() || !form.email.trim() || !form.role) {
       setResult({ type: 'error', message: 'All fields are required' })
+      return
+    }
+
+    if (!isSuperAdmin && form.role !== 'student') {
+      setShowAccessDenied(true)
       return
     }
 
@@ -114,14 +126,18 @@ const UserCreate = () => {
   
 
     // Add dropdown data validation for Role column (F2:F100)
+    const roleList = isSuperAdmin ? '"student,canteena,canteenb,admin,superadmin"' : '"student"'
+    const roleError = isSuperAdmin
+      ? 'Please select a valid role: student, canteena, canteenb, admin, or superadmin'
+      : 'Only student role is allowed for your account'
     for (let i = 2; i <= 100; i++) {
       ws.getCell(`F${i}`).dataValidation = {
         type: 'list',
         allowBlank: false,
-        formulae: ['"student,canteena,canteenb,admin"'],
+        formulae: [roleList],
         showErrorMessage: true,
         errorTitle: 'Invalid Role',
-        error: 'Please select a valid role: student, canteena, canteenb, or admin',
+        error: roleError,
       }
     }
 
@@ -309,6 +325,8 @@ const UserCreate = () => {
           )}
         </div>
       )}
+
+      <AccessDeniedModal open={showAccessDenied} onClose={() => setShowAccessDenied(false)} />
     </div>
   )
 }

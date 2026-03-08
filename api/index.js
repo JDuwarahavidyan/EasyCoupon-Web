@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const authRoute = require('./routes/auth');
 const userRoute = require('./routes/users');
 const qrRoute = require('./routes/qr');
+const logRoute = require('./routes/logs');
 const http = require('http');
 const WebSocket = require('ws');
 const admin = require('firebase-admin');
@@ -77,6 +78,7 @@ app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
 app.use('/api/qr', qrRoute);
+app.use('/api/logs', logRoute);
 
 // WebSocket connection for real-time updates (with auth)
 wss.on('connection', (ws, req) => {

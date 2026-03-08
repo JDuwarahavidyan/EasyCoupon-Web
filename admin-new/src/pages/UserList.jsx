@@ -1,9 +1,11 @@
 import { useState, useEffect, useContext, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserContext } from '../context/UserContext.jsx'
+import { AuthContext } from '../context/AuthContext.jsx'
 import { getUsers, deleteUser, disableUser, enableUser } from '../api/users.js'
 import StatusBadge from '../components/StatusBadge.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
+import AccessDeniedModal from '../components/AccessDeniedModal.jsx'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
 import { Search, Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -18,11 +20,14 @@ const PAGE_SIZE = 10
 
 const UserList = () => {
   const { users, isFetching, dispatch } = useContext(UserContext)
+  const { user: currentUser } = useContext(AuthContext)
+  const isSuperAdmin = currentUser?.role === 'superadmin'
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [confirmDialog, setConfirmDialog] = useState({ open: false })
   const [dialogLoading, setDialogLoading] = useState(false)
+  const [showAccessDenied, setShowAccessDenied] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -42,7 +47,7 @@ const UserList = () => {
     let result = users
     if (activeTab === 'student') result = result.filter((u) => u.role === 'student')
     else if (activeTab === 'canteen') result = result.filter((u) => u.role === 'canteena' || u.role === 'canteenb')
-    else if (activeTab === 'admin') result = result.filter((u) => u.role === 'admin')
+    else if (activeTab === 'admin') result = result.filter((u) => u.role === 'admin' || u.role === 'superadmin')
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -62,6 +67,10 @@ const UserList = () => {
   useEffect(() => { setPage(0) }, [activeTab, search])
 
   const handleDelete = (user) => {
+    if (!isSuperAdmin && user.role !== 'student') {
+      setShowAccessDenied(true)
+      return
+    }
     setConfirmDialog({
       open: true,
       title: 'Delete User',
@@ -80,6 +89,10 @@ const UserList = () => {
   }
 
   const handleToggleStatus = (user) => {
+    if (!isSuperAdmin && user.role !== 'student') {
+      setShowAccessDenied(true)
+      return
+    }
     const isDisabling = !user.disabled
     setConfirmDialog({
       open: true,
@@ -107,7 +120,7 @@ const UserList = () => {
   }
 
   const getRoleLabel = (role) => {
-    const map = { student: 'Student', canteena: 'Canteen A', canteenb: 'Canteen B', admin: 'Admin' }
+    const map = { student: 'Student', canteena: 'Canteen A', canteenb: 'Canteen B', admin: 'Admin', superadmin: 'Super Admin' }
     return map[role] || role
   }
 
@@ -208,7 +221,13 @@ const UserList = () => {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/users/${user.id}`)}
+                        onClick={() => {
+                          if (!isSuperAdmin && user.role !== 'student' && user.id !== currentUser?.uid) {
+                            setShowAccessDenied(true)
+                            return
+                          }
+                          navigate(`/users/${user.id}`)
+                        }}
                         className="p-2 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors"
                         title="Edit"
                       >
@@ -272,6 +291,8 @@ const UserList = () => {
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog({ open: false })}
       />
+
+      <AccessDeniedModal open={showAccessDenied} onClose={() => setShowAccessDenied(false)} />
     </div>
   )
 }

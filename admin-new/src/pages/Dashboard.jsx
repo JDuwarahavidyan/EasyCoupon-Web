@@ -11,7 +11,7 @@ import { getUserStats, getUserSummary, getNewUsers } from '../api/users.js'
 import { getQrStats, getQrCount, getQrSummary } from '../api/qr.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const COLORS = { primary: '#3CB34A', dark: '#25664B', sage: '#5A8E6F', accent: '#627d98', navy: '#243b53' }
+const COLORS = { primary: '#3CB34A', dark: '#25664B', sage: '#5A8E6F', accent: '#627d98', navy: '#243b53', rose: '#be123c' }
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true)
@@ -80,6 +80,7 @@ const Dashboard = () => {
         { name: 'Canteen A', value: userSummary.totalCanteenA, color: COLORS.sage },
         { name: 'Canteen B', value: userSummary.totalCanteenB, color: COLORS.accent },
         { name: 'Admins', value: userSummary.totalAdmins, color: COLORS.navy },
+        { name: 'Super Admins', value: userSummary.totalSuperAdmins, color: COLORS.rose },
       ].filter((d) => d.value > 0)
     : []
 

@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useContext } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { AuthContext } from '../context/AuthContext.jsx'
 import { getUser, updateUser } from '../api/users.js'
 import { storage } from '../lib/firebase.js'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
 import QRCode from 'react-qr-code'
 import CryptoJS from 'crypto-js'
 import { saveAs } from 'file-saver'
+import AccessDeniedModal from '../components/AccessDeniedModal.jsx'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import {
@@ -16,12 +18,15 @@ import {
 const UserDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user: currentUser } = useContext(AuthContext)
+  const isSuperAdmin = currentUser?.role === 'superadmin'
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showAccessDenied, setShowAccessDenied] = useState(false)
   const qrRef = useRef(null)
 
   const [form, setForm] = useState({ userName: '', fullName: '', email: '', profilePic: '' })
@@ -31,6 +36,11 @@ const UserDetail = () => {
     const fetchUser = async () => {
       try {
         const data = await getUser(id)
+        // Admin (non-superadmin) can only view/edit student accounts or their own
+        if (!isSuperAdmin && data.role !== 'student' && data.id !== currentUser?.uid) {
+          setShowAccessDenied(true)
+          return
+        }
         setUser(data)
         setForm({
           userName: data.userName || '',
@@ -166,13 +176,22 @@ const UserDetail = () => {
   }
 
   const getRoleLabel = (role) => {
-    const map = { student: 'Student', canteena: 'Canteen A', canteenb: 'Canteen B', admin: 'Admin' }
+    const map = { student: 'Student', canteena: 'Canteen A', canteenb: 'Canteen B', admin: 'Admin', superadmin: 'Super Admin' }
     return map[role] || role
   }
 
   const isCanteen = user?.role === 'canteena' || user?.role === 'canteenb'
 
   if (loading) return <LoadingSpinner size="lg" text="Loading user..." />
+
+  if (showAccessDenied) {
+    return (
+      <AccessDeniedModal
+        open={true}
+        onClose={() => navigate('/users')}
+      />
+    )
+  }
 
   if (!user) {
     return (

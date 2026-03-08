@@ -6,6 +6,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import * as XLSX from 'xlsx'
 import { Search, Download, Calendar, ChevronLeft, ChevronRight, Ticket } from 'lucide-react'
+import { createLog } from '../api/logs.js'
 
 const TABS = [
   { key: 'all', label: 'All' },
@@ -143,6 +144,12 @@ const Reports = () => {
       : new Date().toISOString().slice(0, 10)
 
     XLSX.writeFile(wb, `Coupons_History_${dateStr}.xlsx`)
+
+    // Log the report download
+    const dateRange = startDate && endDate
+      ? `${startDate.toLocaleDateString('en-GB')} to ${endDate.toLocaleDateString('en-GB')}`
+      : 'All dates'
+    createLog('DOWNLOAD_REPORT', `Exported ${selected.length} record${selected.length > 1 ? 's' : ''} — Date range: ${dateRange}`)
   }
 
   const formatDateTime = (str) => {

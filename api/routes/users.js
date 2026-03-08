@@ -3,6 +3,7 @@ const User = require('../models/User');
 const verifyAdmin = require("../verifyToken");
 const admin = require('firebase-admin');
 const { sendEmail } = require('../mail');
+const logAction = require('../logAction');
 
 
 
@@ -29,6 +30,14 @@ router.put("/:id", verifyAdmin, async (req, res) => {
   const { email, userName } = updates;
 
   try {
+      // Admin (non-superadmin) can only edit student accounts (or their own)
+      if (req.user.role === 'admin' && userId !== req.user.uid) {
+          const targetDoc = await db.collection('users').doc(userId).get();
+          if (targetDoc.exists && targetDoc.data().role !== 'student') {
+              return res.status(403).json({ error: 'Access denied. Admins can only edit student accounts.' });
+          }
+      }
+
       // Check if the username is taken by another user
       if (userName) {
           const existingUser = await db.collection('users')
@@ -56,14 +65,35 @@ router.put("/:id", verifyAdmin, async (req, res) => {
           await admin.auth().updateUser(userId, { email });
       }
 
-      // Update Firestore user document
+      // Fetch old data before update for audit log
       const userRef = db.collection('users').doc(userId);
+      const oldSnap = await userRef.get();
+      const oldData = oldSnap.data();
+
+      // Update Firestore user document
       await userRef.update({
           ...updates,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       const updatedUser = await userRef.get();
+
+      // Audit log
+      const labels = { email: 'Email', userName: 'Username', fullName: 'Full Name', profilePic: 'Profile Picture' };
+      const changedFields = Object.keys(updates)
+          .filter(f => oldData[f] !== updates[f])
+          .map(f => {
+              const label = labels[f] || f;
+              if (f === 'profilePic') return `${label}: Updated`;
+              return `${label}: ${oldData[f] || '—'} → ${updates[f]}`;
+          }).join(', ');
+      await logAction(req.db, {
+          adminId: req.user.uid,
+          adminName: req.user.fullName,
+          action: 'UPDATE_USER',
+          details: `Updated ${updatedUser.data().fullName || userId} — ${changedFields}`,
+      });
+
       res.status(200).json(updatedUser.data());
   } catch (err) {
       res.status(500).json({ error: 'Failed to update user' });
@@ -74,9 +104,28 @@ router.put("/:id", verifyAdmin, async (req, res) => {
 // DELETE
 router.delete("/:id", verifyAdmin, async (req, res) => {
   try {
-      // Only admins can delete users
+      // Fetch user info before deletion for audit log
+      const userDoc = await admin.firestore().collection('users').doc(req.params.id).get();
+
+      // Admin (non-superadmin) can only delete student accounts
+      if (req.user.role === 'admin' && userDoc.exists && userDoc.data().role !== 'student') {
+          return res.status(403).json({ error: 'Access denied. Admins can only delete student accounts.' });
+      }
+
+      const deletedName = userDoc.exists ? userDoc.data().fullName : req.params.id;
+      const deletedUserName = userDoc.exists ? userDoc.data().userName : '';
+
       await admin.auth().deleteUser(req.params.id);
       await admin.firestore().collection('users').doc(req.params.id).delete();
+
+      // Audit log
+      await logAction(req.db, {
+          adminId: req.user.uid,
+          adminName: req.user.fullName,
+          action: 'DELETE_USER',
+          details: `Permanently deleted ${deletedName}${deletedUserName ? ' (' + deletedUserName + ')' : ''}`,
+      });
+
       res.status(200).json("User has been deleted...");
   } catch (err) {
       res.status(500).json({ error: 'Failed to delete user' });
@@ -93,6 +142,7 @@ router.get("/summary", verifyAdmin, async (req, res) => {
       totalCanteenA: 0,
       totalCanteenB: 0,
       totalAdmins: 0,
+      totalSuperAdmins: 0,
       disabledUsers: 0,
       activeUsers: 0,
     };
@@ -110,6 +160,7 @@ router.get("/summary", verifyAdmin, async (req, res) => {
         case 'canteena': summary.totalCanteenA++; break;
         case 'canteenb': summary.totalCanteenB++; break;
         case 'admin': summary.totalAdmins++; break;
+        case 'superadmin': summary.totalSuperAdmins++; break;
       }
     });
 
@@ -188,6 +239,14 @@ router.put("/disable/:id", verifyAdmin, async (req, res) => {
   try {
     const uid = req.params.id;
 
+    // Admin (non-superadmin) can only disable student accounts
+    if (req.user.role === 'admin') {
+        const targetDoc = await admin.firestore().collection('users').doc(uid).get();
+        if (targetDoc.exists && targetDoc.data().role !== 'student') {
+            return res.status(403).json({ error: 'Access denied. Admins can only disable student accounts.' });
+        }
+    }
+
     // Disable the user account in Firebase Authentication
     await admin.auth().updateUser(uid, {
       disabled: true
@@ -222,7 +281,15 @@ router.put("/disable/:id", verifyAdmin, async (req, res) => {
 </table>
 
 <p style="margin:0; color:#666666;">Thank you for your understanding.</p>`);
-      
+
+    // Audit log
+    await logAction(req.db, {
+        adminId: req.user.uid,
+        adminName: req.user.fullName,
+        action: 'DISABLE_USER',
+        details: `Suspended account for ${userDoc.data().fullName} (${userDoc.data().userName})`,
+    });
+
     res.status(200).json({ message: "User account has been disabled" });
   } catch (err) {
     res.status(500).json({ error: 'Failed to disable user' });
@@ -234,6 +301,14 @@ router.put("/disable/:id", verifyAdmin, async (req, res) => {
 router.put("/enable/:id", verifyAdmin, async (req, res) => {
   try {
     const uid = req.params.id;
+
+    // Admin (non-superadmin) can only enable student accounts
+    if (req.user.role === 'admin') {
+        const targetDoc = await admin.firestore().collection('users').doc(uid).get();
+        if (targetDoc.exists && targetDoc.data().role !== 'student') {
+            return res.status(403).json({ error: 'Access denied. Admins can only enable student accounts.' });
+        }
+    }
 
     // Enable the user account in Firebase Authentication
     await admin.auth().updateUser(uid, {
@@ -269,8 +344,14 @@ router.put("/enable/:id", verifyAdmin, async (req, res) => {
 </table>
 
 <p style="margin:0; color:#666666;">Thank you for your attention to this matter.</p>`);
-      
-      
+
+    // Audit log
+    await logAction(req.db, {
+        adminId: req.user.uid,
+        adminName: req.user.fullName,
+        action: 'ENABLE_USER',
+        details: `Re-enabled account for ${userDoc.data().fullName} (${userDoc.data().userName})`,
+    });
 
     res.status(200).json({ message: "User account has been enabled" });
   } catch (err) {

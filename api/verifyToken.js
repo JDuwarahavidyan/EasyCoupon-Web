@@ -18,11 +18,17 @@ const verifyAdmin = async (req, res, next) => {
         // Fetch user data from Firestore using the uid
         const userDoc = await admin.firestore().collection('users').doc(decodedToken.uid).get();
 
-        if (!userDoc.exists || userDoc.data().role !== 'admin') {
+        if (!userDoc.exists || (userDoc.data().role !== 'admin' && userDoc.data().role !== 'superadmin')) {
             return res.status(403).json({ error: "Access denied. Admins only." });
         }
 
-        req.user = { uid: decodedToken.uid, role: userDoc.data().role };
+        const userData = userDoc.data();
+        req.user = {
+            uid: decodedToken.uid,
+            role: userData.role,
+            fullName: userData.fullName,
+            userName: userData.userName,
+        };
         next();
     } catch (err) {
         if (err.name === 'TokenExpiredError') {

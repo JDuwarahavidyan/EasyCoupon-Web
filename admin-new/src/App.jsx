@@ -10,6 +10,7 @@ import UserList from './pages/UserList.jsx'
 import UserCreate from './pages/UserCreate.jsx'
 import UserDetail from './pages/UserDetail.jsx'
 import Reports from './pages/Reports.jsx'
+import Logs from './pages/Logs.jsx'
 
 function App() {
   const { user } = useContext(AuthContext)
@@ -25,6 +26,7 @@ function App() {
           <Route path="/users/new" element={<UserCreate />} />
           <Route path="/users/:id" element={<UserDetail />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/logs" element={<Logs />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />

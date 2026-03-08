@@ -6,9 +6,11 @@ const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const verifyAdmin = require('../verifyToken');
+const logAction = require('../logAction');
 
-const VALID_ROLES = ['student', 'canteena', 'canteenb', 'admin'];
+const VALID_ROLES = ['student', 'canteena', 'canteenb', 'admin', 'superadmin'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ROLE_LABELS = { student: 'Student', canteena: 'Canteen A', canteenb: 'Canteen B', admin: 'Admin', superadmin: 'Super Admin' };
 
 const generateRandomPassword = (length = 8) => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -34,6 +36,11 @@ router.post('/register', verifyAdmin, async (req, res) => {
     }
     if (!VALID_ROLES.includes(role)) {
         return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` });
+    }
+
+    // Admin (non-superadmin) can only create student accounts
+    if (req.user.role === 'admin' && role !== 'student') {
+        return res.status(403).json({ error: 'Access denied. Admins can only create student accounts. Contact a Super Admin for other roles.' });
     }
 
     try {
@@ -109,7 +116,7 @@ router.post('/register', verifyAdmin, async (req, res) => {
 </td></tr>
 </table>
 
-${role === 'admin'
+${(role === 'admin' || role === 'superadmin')
 ? `<p style="margin:0 0 16px 0;">Get started by logging into the Easy Coupon Admin Panel:</p>
 
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
@@ -130,6 +137,14 @@ ${role === 'admin'
   </a>
 </td></tr>
 </table>`}`);
+
+        // Audit log
+        await logAction(db, {
+            adminId: req.user.uid,
+            adminName: req.user.fullName,
+            action: 'CREATE_USER',
+            details: `New ${ROLE_LABELS[role] || role} account created for ${fullName} (${userName})`,
+        });
 
         res.status(201).json({
             message: 'User registered successfully and email sent',
@@ -163,7 +178,7 @@ router.post('/login', async (req, res) => {
 
         const userData = userDoc.docs[0].data();
 
-        if (userData.role !== 'admin') {
+        if (userData.role !== 'admin' && userData.role !== 'superadmin') {
             return res.status(403).json({ error: 'Access denied' });
         }
 
@@ -187,6 +202,14 @@ router.post('/login', async (req, res) => {
 
         // Check if the user is logging in for the first time (isFirstTime)
         const isFirstTime = userData.isFirstTime || false;
+
+        // Audit log
+        await logAction(db, {
+            adminId: userId,
+            adminName: userData.fullName,
+            action: 'LOGIN',
+            details: `Signed in to the admin panel`,
+        });
 
         res.status(200).json({
             customToken,
@@ -250,6 +273,14 @@ router.post('/reset-password', async (req, res) => {
         });
         await db.collection('users').doc(uid).update({
             isFirstTime: false
+        });
+
+        // Audit log
+        await logAction(db, {
+            adminId: uid,
+            adminName: userData.fullName,
+            action: 'RESET_PASSWORD',
+            details: `Password changed successfully`,
         });
 
         res.status(200).json({

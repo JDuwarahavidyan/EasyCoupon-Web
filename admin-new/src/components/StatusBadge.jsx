@@ -6,6 +6,7 @@ const StatusBadge = ({ status, children }) => {
     canteena: 'bg-amber-100 text-amber-700',
     canteenb: 'bg-purple-100 text-purple-700',
     admin: 'bg-primary-100 text-primary-600',
+    superadmin: 'bg-rose-100 text-rose-700',
   }
 
   return (
