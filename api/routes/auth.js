@@ -299,5 +299,187 @@ router.post('/reset-password', async (req, res) => {
 });
 
 
+// In-memory OTP store: { email: { otp, expiresAt, attempts } }
+const otpStore = new Map();
+const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_OTP_ATTEMPTS = 5;
+
+const generateOtp = () => {
+    return Array.from(crypto.randomFillSync(new Uint8Array(3)))
+        .map((x) => x % 10)
+        .join('') + Array.from(crypto.randomFillSync(new Uint8Array(3)))
+        .map((x) => x % 10)
+        .join('');
+};
+
+// Forgot password - Step 1: Send OTP to email
+router.post('/forgot-password/send-otp', async (req, res) => {
+    const { email } = req.body;
+    const db = req.db;
+
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    try {
+        const userDoc = await db.collection('users')
+            .where('email', '==', email)
+            .limit(1)
+            .get();
+
+        if (userDoc.empty) {
+            return res.status(404).json({ error: 'No account found with this email address.' });
+        }
+
+        const userData = userDoc.docs[0].data();
+
+        if (userData.role !== 'admin' && userData.role !== 'superadmin') {
+            return res.status(403).json({ error: 'Password reset is only available for admin accounts.' });
+        }
+
+        const otp = generateOtp();
+        otpStore.set(email, {
+            otp,
+            expiresAt: Date.now() + OTP_EXPIRY_MS,
+            attempts: 0,
+        });
+
+        // Send OTP email
+        await sendEmail(email, 'Password Reset OTP - Easy Coupon', userData.fullName,
+`<p style="margin:0 0 16px 0;">We received a request to reset your password. Use the verification code below to proceed with the password reset.</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px 0;">
+<tr><td style="background-color:#f2f8f2; border-radius:10px; padding:24px; text-align:center; border-left:4px solid #3CB34A;">
+  <p style="margin:0 0 8px 0; font-size:13px; color:#888888; text-transform:uppercase; letter-spacing:1px;">Verification Code</p>
+  <p style="margin:0; font-size:32px; font-weight:700; color:#2E5A3A; letter-spacing:6px; font-family:monospace;">${otp}</p>
+</td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+<tr><td style="background-color:#fff8f0; border-radius:10px; padding:16px 20px; border-left:4px solid #e8a020;">
+  <p style="margin:0 0 6px 0; font-size:13px; font-weight:700; color:#b07810;">Important</p>
+  <p style="margin:0; font-size:13px; color:#666666; line-height:1.6;">This code expires in 5 minutes. If you did not request this reset, please ignore this email and your password will remain unchanged.</p>
+</td></tr>
+</table>`);
+
+        res.status(200).json({ message: 'An OTP has been sent to your email.' });
+    } catch (error) {
+        console.error('Send OTP error:', error);
+        res.status(500).json({ error: 'Something went wrong. Please try again later.' });
+    }
+});
+
+// Forgot password - Step 2: Verify OTP and reset password
+router.post('/forgot-password/verify-otp', async (req, res) => {
+    const { email, otp } = req.body;
+    const db = req.db;
+
+    if (!email || !otp) {
+        return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    const storedOtp = otpStore.get(email);
+
+    if (!storedOtp) {
+        return res.status(400).json({ error: 'No OTP found. Please request a new one.' });
+    }
+
+    if (Date.now() > storedOtp.expiresAt) {
+        otpStore.delete(email);
+        return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (storedOtp.attempts >= MAX_OTP_ATTEMPTS) {
+        otpStore.delete(email);
+        return res.status(429).json({ error: 'Too many failed attempts. Please request a new OTP.' });
+    }
+
+    if (storedOtp.otp !== otp) {
+        storedOtp.attempts += 1;
+        return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
+    }
+
+    // OTP is valid — delete it so it can't be reused
+    otpStore.delete(email);
+
+    try {
+        const userDoc = await db.collection('users')
+            .where('email', '==', email)
+            .limit(1)
+            .get();
+
+        if (userDoc.empty) {
+            return res.status(400).json({ error: 'User not found.' });
+        }
+
+        const userData = userDoc.docs[0].data();
+        const uid = userData.id;
+        const newPassword = generateRandomPassword();
+
+        // Update password in Firebase Auth
+        await admin.auth().updateUser(uid, { password: newPassword });
+
+        // Set isFirstTime to true so user must change password on next login
+        await db.collection('users').doc(uid).update({
+            isFirstTime: true,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Send password reset email with new temp credentials
+        await sendEmail(email, 'Password Reset - Easy Coupon', userData.fullName,
+`<p style="margin:0 0 16px 0;">Your password has been successfully reset. Please use the credentials below to log in and change your password immediately.</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px 0;">
+<tr><td style="background-color:#f2f8f2; border-radius:10px; padding:20px 24px; border-left:4px solid #3CB34A;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td style="padding:4px 0; font-size:14px; color:#888888; width:140px;">Username</td>
+      <td style="padding:4px 0; font-size:15px; color:#2E5A3A; font-weight:600;">${userData.userName}</td>
+    </tr>
+    <tr>
+      <td style="padding:4px 0; font-size:14px; color:#888888; width:140px;">Temporary Password</td>
+      <td style="padding:4px 0; font-size:15px; color:#2E5A3A; font-weight:600; font-family:monospace; letter-spacing:1px;">${newPassword}</td>
+    </tr>
+  </table>
+</td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+<tr><td style="background-color:#fff8f0; border-radius:10px; padding:16px 20px; border-left:4px solid #e8a020;">
+  <p style="margin:0 0 6px 0; font-size:13px; font-weight:700; color:#b07810;">Important</p>
+  <p style="margin:0; font-size:13px; color:#666666; line-height:1.6;">This temporary password will expire on your next login. Please log in and change your password immediately. If you did not request this reset, contact your administrator.</p>
+</td></tr>
+</table>
+
+<p style="margin:0 0 16px 0;">Log in to the Easy Coupon Admin Panel to change your password:</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<tr><td align="center" style="border-radius:8px; background-color:#2E5A3A;">
+  <a href="https://easycouponweb.onrender.com/"
+     style="display:inline-block; padding:14px 36px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">
+    Go to Admin Panel
+  </a>
+</td></tr>
+</table>`);
+
+        // Audit log
+        await logAction(db, {
+            adminId: uid,
+            adminName: userData.fullName,
+            action: 'FORGOT_PASSWORD',
+            details: `Password reset via OTP verification`,
+        });
+
+        res.status(200).json({ message: 'Password has been reset. Check your email for the new credentials.' });
+    } catch (error) {
+        console.error('Verify OTP error:', error);
+        res.status(500).json({ error: 'Something went wrong. Please try again later.' });
+    }
+});
+
 
 module.exports = router;
